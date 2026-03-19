@@ -1,3 +1,28 @@
+## Job Application Tracker
+
+This is a Streamlit-based dashboard for tracking your job applications. It lets you:
+- Log new applications with status, source, and contact info.
+- Update existing applications as you move through the process.
+- View filters, metrics, and charts that summarize your pipeline.
+
+### AI Outreach Message Integration
+
+The app includes an **AI Outreach Helper** that can draft a tailored outreach message for a selected application:
+- It uses the `generate_outreach_message` helper in `ai_helpers.py`.
+- The helper calls the OpenAI Chat Completions API to generate a short, professional message.
+- The message is shown in a text area so you can review and edit it before sending from your own email or LinkedIn account.
+
+To enable the AI feature:
+1. Install dependencies from `requirements.txt`.
+2. Set the `OPENAI_API_KEY` environment variable to a valid OpenAI API key.
+3. Run the app with:
+
+```bash
+streamlit run app.py
+```
+
+If `OPENAI_API_KEY` is not set, the AI Outreach Helper will display a clear error instead of generating a message.
+
 # Job Application Tracker
 
 A lightweight personal dashboard for managing and monitoring your job search, built with Python and Streamlit.
