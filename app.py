@@ -11,8 +11,12 @@ from tracker import (
     SOURCES,
 )
 
-st.set_page_config(page_title="Job Application Tracker", page_icon="📋", layout="wide")
+#NEW
+from ai_helpers import generate_outreach_message  # helper that calls the OpenAI API to draft outreach text
 
+st.set_page_config(page_title="Job Application Tracker", page_icon="📋", layout="wide")  # must be first Streamlit command
+
+# Centralised status → colour mapping so UI stays consistent across the app
 STATUS_COLOURS = {
     "Applied": "#3b82f6",
     "Follow-Up Sent": "#f59e0b",
@@ -22,6 +26,7 @@ STATUS_COLOURS = {
     "Ghosted": "#6b7280",
 }
 
+# Global page-level styling for metric cards, status pills, and flags
 st.markdown(
     """
     <style>
@@ -68,12 +73,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📋 Job Application Tracker")
+st.title("📋 Job Application Tracker")  # main entry point for the Streamlit app
 
-df = load_applications()
+df = load_applications()  # load the underlying CSV/data store into a DataFrame
 
 # ---------------------------------------------------------------------------
-# Dashboard metrics
+# Dashboard metrics summarising the current pipeline at a glance
 # ---------------------------------------------------------------------------
 st.markdown("---")
 total = len(df)
@@ -87,7 +92,7 @@ if total:
 else:
     apps_this_week = 0
 
-if active and total:
+    if active and total:
     active_df = df[~df["Status"].isin(["Rejected", "Ghosted"])].copy()
     active_df["_days"] = active_df["Date Applied"].apply(days_since_applied)
     avg_days = round(active_df["_days"].mean(), 1)
@@ -98,7 +103,7 @@ cols = st.columns(5)
 metrics = [
     ("Total Applications", str(total)),
     ("Active", str(active)),
-    ("Response Rate", f"{response_rate:.0f}%"),
+    ("Response Rate", f"{response_rate:.0f}%"),  # proportion of applications that moved past "Applied"
     ("This Week", str(apps_this_week)),
     ("Avg Days (Active)", str(avg_days)),
 ]
@@ -112,6 +117,7 @@ st.markdown("---")
 
 # ---------------------------------------------------------------------------
 # Add new application
+# Uses a form so that submission is explicit and easy to validate before saving
 # ---------------------------------------------------------------------------
 with st.expander("➕ Log New Application", expanded=not total):
     with st.form("add_form", clear_on_submit=True):
@@ -142,6 +148,7 @@ with st.expander("➕ Log New Application", expanded=not total):
 
 # ---------------------------------------------------------------------------
 # Update existing application
+# Uses labels derived from the row to keep the index aligned with the underlying DataFrame
 # ---------------------------------------------------------------------------
 if total:
     with st.expander("✏️ Update Existing Application"):
@@ -173,9 +180,39 @@ if total:
                 )
                 st.success("Application updated!")
                 st.rerun()
+       
+        # AI outreach helper
+        # This section uses the selected row to generate a suggested message, but never sends it anywhere.
+        st.markdown("### AI Outreach Helper")
+        st.write(
+            "Click the button below to generate a suggested outreach message for the selected application."
+        )
 
+        if st.button("Generate outreach message"):
+            contact_name = row["Contact Name"] if pd.notna(row["Contact Name"]) else ""
+            contact_linkedin = row["Contact LinkedIn"] if pd.notna(row["Contact LinkedIn"]) else ""
+
+            application_data = {
+                "Company": row["Company"],
+                "Role": row["Role"],
+                "Contact Name": contact_name,
+                "Contact LinkedIn": contact_linkedin,
+                "Source": row["Source"],
+                "Status": row["Status"],
+                "Notes": row["Notes"],
+                "Date Applied": row["Date Applied"],
+            }
+
+            with st.spinner("Generating..."):  # give feedback while waiting for the OpenAI API call
+                try:
+                    message = generate_outreach_message(application_data)  # note: function currently ignores most fields
+                    st.markdown("**Suggested Outreach Message:**")
+                    st.text_area("You can copy and tweak this:", message, height = 200)
+                except Exception as e:
+                    st.error(f"Could not generate message:  {e}")
 # ---------------------------------------------------------------------------
 # Application table with filters
+# Everything below is read-only; it does not mutate the underlying CSV
 # ---------------------------------------------------------------------------
 if total:
     st.subheader("Applications")
@@ -196,7 +233,7 @@ if total:
     ascending = sort_order == "Oldest First"
     view = view.sort_values("Date Applied", ascending=ascending).reset_index(drop=True)
 
-    view["Days Since Applied"] = view["Date Applied"].apply(days_since_applied)
+    view["Days Since Applied"] = view["Date Applied"].apply(days_since_applied)  # recomputed to reflect current date
     view["Follow-Up?"] = view.apply(needs_follow_up, axis=1).map({True: "⚠️ Needs follow-up", False: ""})
 
     def colour_status(val):
@@ -216,6 +253,7 @@ if total:
         "Contact LinkedIn",
     ]
 
+    # Use pandas Styler to colour the status column and keep dates nicely formatted
     styled = (
         view[display_cols]
         .style.map(colour_status, subset=["Status"])
